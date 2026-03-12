@@ -73,7 +73,7 @@ async def create_mosaic(
 
     import tempfile
     from PIL import Image
-    from .storage import export_result, download_tiles_from_drive, _upload_to_drive
+    from . import settings
 
     content = await base_image.read()
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
@@ -137,45 +137,75 @@ async def create_mosaic(
             "base_drive_id": base_drive_id,
             "base_drive_link": base_drive_link,
             "tile_drive_id": tile_drive_id,
-            "tile_drive_link": tile_drive_link,
-        }
-    )
 
-    if not any(settings.TILES_DIR.glob("*.jpg")) and not any(settings.TILES_DIR.glob("*.jpeg")) and not any(settings.TILES_DIR.glob("*.png")):
-        raise HTTPException(status_code=400, detail="Tiles folder is empty. Add images to data/tiles.")
+            @app.post("/api/mosaic")
+            async def create_mosaic(
+                base_image: UploadFile = File(...),
+                pixel_size_mm: int = Form(25),
+                max_uses: int = Form(2),
+                similarity: float = Form(0.0),
+                quality: int = Form(settings.DEFAULT_QUALITY),
+            ):
+                if base_image.content_type not in {"image/jpeg", "image/jpg", "image/png"}:
+                    raise HTTPException(status_code=400, detail="Only JPG and PNG files are allowed.")
 
-    output_name = _safe_output_name(base_image.filename or "mosaic")
-    output_path = settings.OUTPUT_DIR / output_name
+                if pixel_size_mm <= 0:
+                    raise HTTPException(status_code=400, detail="pixel_size_mm must be greater than zero.")
+                if max_uses not in {0, 2, 4}:
+                    raise HTTPException(status_code=400, detail="max_uses must be one of: 0, 2, 4.")
+                if not (0.0 <= similarity <= 100.0):
+                    raise HTTPException(status_code=400, detail="similarity must be between 0 and 100.")
 
-    try:
-        build_mosaic(
-            reference_path=input_path,
-            tiles_folder=settings.TILES_DIR,
-            tile_size_mm=pixel_size_mm,
-            max_uses=max_uses,
-            output_path=output_path,
-            similarity=similarity,
-            quality=quality,
-            dpi=settings.DEFAULT_DPI,
-        )
-        export_info = export_result(output_path)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to create mosaic: {exc}") from exc
+                import tempfile
+                from PIL import Image
 
-    return JSONResponse(
-        {
-            "ok": True,
-            "output_file": output_name,
-            "download_url": f"/api/output/{output_name}",
-            "drive_file_id": export_info.drive_file_id,
-            "drive_web_link": export_info.drive_web_link,
-        }
-    )
+                content = await base_image.read()
+                max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+                if len(content) > max_bytes:
+                    raise HTTPException(status_code=413, detail=f"File too large. Max is {settings.MAX_UPLOAD_MB}MB.")
 
+                extension = ".jpg"
+                if base_image.filename and base_image.filename.lower().endswith(".png"):
+                    extension = ".png"
 
-@app.get("/api/output/{filename}")
-def get_output_file(filename: str):
-    file_path = settings.OUTPUT_DIR / filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found.")
-    return FileResponse(path=file_path, media_type="image/jpeg", filename=file_path.name)
+                # Salvar temporariamente em /tmp
+                tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=extension, dir="/tmp")
+                tmp_file.write(content)
+                tmp_file.close()
+                input_path = Path(tmp_file.name)
+
+                # Redimensionar para 2K (2048px de largura)
+                resized_path = Path(f"/tmp/resized_{input_path.name}")
+                img = Image.open(input_path)
+                img = img.convert("RGB")
+                img.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
+                img.save(resized_path, "JPEG", quality=90)
+
+                # Usar tiles locais
+                if not any(settings.TILES_DIR.glob("*.jpg")) and not any(settings.TILES_DIR.glob("*.jpeg")) and not any(settings.TILES_DIR.glob("*.png")):
+                    raise HTTPException(status_code=400, detail="Tiles folder is empty. Adicione imagens em data/tiles.")
+
+                output_name = _safe_output_name(base_image.filename or "mosaic")
+                output_path = settings.OUTPUT_DIR / output_name
+
+                try:
+                    build_mosaic(
+                        reference_path=resized_path,
+                        tiles_folder=settings.TILES_DIR,
+                        tile_size_mm=pixel_size_mm,
+                        max_uses=max_uses,
+                        output_path=output_path,
+                        similarity=similarity,
+                        quality=quality,
+                        dpi=settings.DEFAULT_DPI,
+                    )
+                except Exception as exc:
+                    raise HTTPException(status_code=500, detail=f"Failed to create mosaic: {exc}") from exc
+
+                return JSONResponse(
+                    {
+                        "ok": True,
+                        "output_file": output_name,
+                        "download_url": f"/api/output/{output_name}",
+                    }
+                )

@@ -73,7 +73,18 @@
             body: data,
           });
 
-          const payload = await response.json();
+          let payload;
+          try {
+            payload = await response.json();
+          } catch {
+            // Se não for JSON, provavelmente erro de tamanho ou texto puro
+            const text = await response.text();
+            if (response.status === 413 || text.includes("Entity Too Large")) {
+              throw new Error("Arquivo muito grande para o servidor (limite 4MB no plano gratuito do Vercel). Envie uma imagem menor.");
+            } else {
+              throw new Error(`Erro do servidor (${response.status}): ${text.slice(0, 100)}`);
+            }
+          }
           if (!response.ok) {
             throw new Error(payload.detail || "Falha ao gerar mosaico.");
           }

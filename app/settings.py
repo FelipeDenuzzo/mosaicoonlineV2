@@ -12,6 +12,7 @@ DEFAULT_DPI = int(os.getenv("MOSAIC_DPI", "240"))
 DEFAULT_QUALITY = int(os.getenv("MOSAIC_QUALITY", "85"))
 MAX_UPLOAD_MB = int(os.getenv("MOSAIC_MAX_UPLOAD_MB", "20"))
 
+<<<<<<< HEAD
 GOOGLE_DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
 GOOGLE_DRIVE_TILES_FOLDER_ID = os.getenv("GOOGLE_DRIVE_TILES_FOLDER_ID", "")
@@ -19,8 +20,10 @@ GOOGLE_DRIVE_BASES_FOLDER_ID = os.getenv("GOOGLE_DRIVE_BASES_FOLDER_ID", "")
 GOOGLE_DRIVE_OUTPUT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_OUTPUT_FOLDER_ID", "")
 
 
+=======
+>>>>>>> 78c073a (Remover dependência do Google Drive; fluxo 100% local (tiles e output); compatível com Vercel)
 def drive_is_configured() -> bool:
-    return bool(GOOGLE_DRIVE_FOLDER_ID and GOOGLE_SERVICE_ACCOUNT_JSON)
+    return False  # Google Drive removido
 
 
 for folder in (INPUT_DIR, OUTPUT_DIR):

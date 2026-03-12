@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import io
 import json
 import tempfile
@@ -92,6 +93,15 @@ def export_result(file_path: Path, folder_id: Optional[str] = None) -> ExportRes
         drive_web_link=web_link,
     )
 
+=======
+"""
+Arquivo mantido para compatibilidade futura. Todas as funções relacionadas ao Google Drive foram removidas.
+O sistema agora utiliza apenas arquivos locais em data/tiles e data/output.
+"""
+import tempfile
+import shutil
+from typing import List
+>>>>>>> 78c073a (Remover dependência do Google Drive; fluxo 100% local (tiles e output); compatível com Vercel)
 
 def download_tiles_from_drive(tiles_folder_id: str) -> Path:
     """
