@@ -36,17 +36,48 @@ def _upload_to_drive(file_path: Path, folder_id: Optional[str] = None) -> tuple[
     from googleapiclient.http import MediaFileUpload
 
     drive = _get_drive_client()
+
+    # Detect mimetype
+    suffix = file_path.suffix.lower()
+    if suffix == ".png":
+        mimetype = "image/png"
+    else:
+        mimetype = "image/jpeg"
+
     metadata = {
         "name": file_path.name,
         "parents": [target_folder],
     }
-    media = MediaFileUpload(str(file_path), mimetype="image/jpeg", resumable=False)
+    media = MediaFileUpload(str(file_path), mimetype=mimetype, resumable=False)
     created = (
         drive.files()
-        .create(body=metadata, media_body=media, fields="id, webViewLink")
+        .create(
+            body=metadata,
+            media_body=media,
+            fields="id, webViewLink",
+            supportsAllDrives=True,
+        )
         .execute()
     )
-    return created.get("id", ""), created.get("webViewLink", "")
+
+    file_id = created.get("id", "")
+    web_link = created.get("webViewLink", "")
+
+    # Transfer ownership to the Drive owner if configured
+    owner_email = getattr(settings, "GOOGLE_DRIVE_OWNER_EMAIL", "") or ""
+    if owner_email and file_id:
+        try:
+            drive.permissions().create(
+                fileId=file_id,
+                body={"role": "owner", "type": "user", "emailAddress": owner_email},
+                transferOwnership=True,
+                supportsAllDrives=True,
+            ).execute()
+        except Exception:
+            # Transfer may fail on Shared Drives or cross-domain — ignore
+            pass
+
+    return file_id, web_link
 
 
 def export_result(file_path: Path, folder_id: Optional[str] = None) -> ExportResult:
@@ -64,8 +95,8 @@ def export_result(file_path: Path, folder_id: Optional[str] = None) -> ExportRes
 
 def download_tiles_from_drive(tiles_folder_id: str) -> Path:
     """
-    Baixa todas as imagens da pasta 'tiles' do Google Drive para uma pasta temporária local.
-    Retorna o caminho da pasta temporária.
+    Baixa todas as imagens da pasta 'tiles' do Google Drive para uma pasta temporaria local.
+    Retorna o caminho da pasta temporaria.
     """
     if not settings.GOOGLE_SERVICE_ACCOUNT_JSON:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not configured.")
@@ -80,14 +111,20 @@ def download_tiles_from_drive(tiles_folder_id: str) -> Path:
         "(mimeType='image/jpeg' or mimeType='image/png' or mimeType='image/jpg') "
         "and trashed=false"
     )
-    results = drive.files().list(q=query, fields="files(id, name)", pageSize=1000).execute()
+    results = drive.files().list(
+        q=query,
+        fields="files(id, name)",
+        pageSize=1000,
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True,
+    ).execute()
     files = results.get("files", [])
 
     temp_dir = Path(tempfile.mkdtemp(prefix="tiles_"))
     for file in files:
         file_id = file["id"]
         file_name = file["name"]
-        request = drive.files().get_media(fileId=file_id)
+        request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
         file_path = temp_dir / file_name
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
