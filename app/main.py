@@ -70,6 +70,11 @@ async def create_mosaic(
     if not (0.0 <= similarity <= 100.0):
         raise HTTPException(status_code=400, detail="similarity must be between 0 and 100.")
 
+
+    import tempfile
+    from PIL import Image
+    from .storage import export_result, download_tiles_from_drive, _upload_to_drive
+
     content = await base_image.read()
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     if len(content) > max_bytes:
@@ -79,9 +84,62 @@ async def create_mosaic(
     if base_image.filename and base_image.filename.lower().endswith(".png"):
         extension = ".png"
 
-    input_name = _safe_output_name(base_image.filename or "upload").replace(".jpg", extension)
-    input_path = settings.INPUT_DIR / input_name
-    input_path.write_bytes(content)
+    # Salvar temporariamente em /tmp
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=extension, dir="/tmp")
+    tmp_file.write(content)
+    tmp_file.close()
+    input_path = Path(tmp_file.name)
+
+    # Redimensionar para 2K (2048px de largura)
+    resized_path = Path(f"/tmp/resized_{input_path.name}")
+    img = Image.open(input_path)
+    img = img.convert("RGB")
+    img.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
+    img.save(resized_path, "JPEG", quality=90)
+
+    # Enviar para pasta de bases no Google Drive
+    base_drive_id, base_drive_link = _upload_to_drive(resized_path, folder_id=settings.GOOGLE_DRIVE_BASES_FOLDER_ID)
+
+    # Copiar para pasta de pixel (tiles) para integrar ao banco
+    tile_drive_id, tile_drive_link = _upload_to_drive(resized_path, folder_id=settings.GOOGLE_DRIVE_TILES_FOLDER_ID)
+
+    # Baixar tiles do Drive para pasta temporária
+    tiles_temp_dir = download_tiles_from_drive(settings.GOOGLE_DRIVE_TILES_FOLDER_ID)
+
+    if not any(tiles_temp_dir.glob("*.jpg")) and not any(tiles_temp_dir.glob("*.jpeg")) and not any(tiles_temp_dir.glob("*.png")):
+        raise HTTPException(status_code=400, detail="Tiles folder is empty. Add images to Google Drive tiles folder.")
+
+    output_name = _safe_output_name(base_image.filename or "mosaic")
+    output_path = Path(f"/tmp/{output_name}")
+
+    try:
+        build_mosaic(
+            reference_path=resized_path,
+            tiles_folder=tiles_temp_dir,
+            tile_size_mm=pixel_size_mm,
+            max_uses=max_uses,
+            output_path=output_path,
+            similarity=similarity,
+            quality=quality,
+            dpi=settings.DEFAULT_DPI,
+        )
+        export_info = export_result(output_path, folder_id=settings.GOOGLE_DRIVE_OUTPUT_FOLDER_ID)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to create mosaic: {exc}") from exc
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "output_file": output_name,
+            "download_url": f"/api/output/{output_name}",
+            "drive_file_id": export_info.drive_file_id,
+            "drive_web_link": export_info.drive_web_link,
+            "base_drive_id": base_drive_id,
+            "base_drive_link": base_drive_link,
+            "tile_drive_id": tile_drive_id,
+            "tile_drive_link": tile_drive_link,
+        }
+    )
 
     if not any(settings.TILES_DIR.glob("*.jpg")) and not any(settings.TILES_DIR.glob("*.jpeg")) and not any(settings.TILES_DIR.glob("*.png")):
         raise HTTPException(status_code=400, detail="Tiles folder is empty. Add images to data/tiles.")
