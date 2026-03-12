@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mosaicoonline</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <h1>mosaicoonline</h1>
+        <p class="hint">Envie a foto base para gerar o mosaico.</p>
+
+        <form id="mosaicForm">
+          <label class="field">
+            <span>Foto base</span>
+            <input type="file" id="base_image" name="base_image" accept=".jpg,.jpeg,.png" required />
+          </label>
+
+          <label class="field">
+            <span>Tamanho do pixel (mm)</span>
+            <input type="number" id="pixel_size_mm" name="pixel_size_mm" min="1" value="25" required />
+          </label>
+
+          <label class="field">
+            <span>Repeticoes por imagem</span>
+            <select id="max_uses" name="max_uses">
+              <option value="0">0</option>
+              <option value="2" selected>2</option>
+              <option value="4">4</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Similaridade (0 a 100)</span>
+            <input type="number" id="similarity" name="similarity" min="0" max="100" step="0.1" value="0" />
+          </label>
+
+          <button type="submit" id="submitBtn">Gerar mosaico</button>
+        </form>
+
+        <div id="status" class="status"></div>
+
+        <div id="result" class="result hidden">
+          <a id="downloadLink" href="#">Baixar mosaico</a>
+          <a id="driveLink" href="#" target="_blank" rel="noreferrer" class="hidden">Abrir no Google Drive</a>
+          <img id="preview" alt="Preview do mosaico" />
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById("mosaicForm");
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+      const downloadLink = document.getElementById("downloadLink");
+      const driveLink = document.getElementById("driveLink");
+      const preview = document.getElementById("preview");
+      const submitBtn = document.getElementById("submitBtn");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusEl.textContent = "Processando imagem...";
+        resultEl.classList.add("hidden");
+        driveLink.classList.add("hidden");
+        submitBtn.disabled = true;
+
+        try {
+          const data = new FormData(form);
+          const response = await fetch("/api/mosaic", {
+            method: "POST",
+            body: data,
+          });
+
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.detail || "Falha ao gerar mosaico.");
+          }
+
+          statusEl.textContent = "Mosaico gerado com sucesso.";
+          downloadLink.href = payload.download_url;
+          preview.src = payload.download_url;
+
+          if (payload.drive_web_link) {
+            driveLink.href = payload.drive_web_link;
+            driveLink.classList.remove("hidden");
+          }
+
+          resultEl.classList.remove("hidden");
+        } catch (error) {
+          statusEl.textContent = error.message;
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
