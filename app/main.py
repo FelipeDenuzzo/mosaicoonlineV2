@@ -51,6 +51,14 @@ async def create_mosaic(
     similarity: float = Form(0.0),
     quality: int = Form(settings.DEFAULT_QUALITY),
 ):
+    print("[DEBUG] Início do endpoint /api/mosaic")
+    print(f"[DEBUG] Tiles DIR: {settings.TILES_DIR}")
+    print(f"[DEBUG] Output DIR: /tmp")
+    import os
+    if not settings.TILES_DIR.exists():
+        print("[ERRO] Pasta de tiles não existe!")
+        raise HTTPException(status_code=500, detail="Pasta de tiles (data/tiles) não existe no deploy. Adicione imagens e faça novo deploy.")
+    print(f"[DEBUG] Arquivos em tiles: {os.listdir(settings.TILES_DIR)}")
     if not settings.drive_is_configured():
         raise HTTPException(
             status_code=500,
@@ -186,7 +194,8 @@ async def create_mosaic(
                     raise HTTPException(status_code=400, detail="Tiles folder is empty. Adicione imagens em data/tiles.")
 
                 output_name = _safe_output_name(base_image.filename or "mosaic")
-                output_path = settings.OUTPUT_DIR / output_name
+                # Sempre salvar o output em /tmp para compatibilidade com Vercel
+                output_path = Path(f"/tmp/{output_name}")
 
                 try:
                     build_mosaic(
