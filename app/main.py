@@ -144,16 +144,9 @@ async def create_mosaic(
             "drive_web_link": export_info.drive_web_link,
             "base_drive_id": base_drive_id,
             "base_drive_link": base_drive_link,
-            "tile_drive_id": tile_drive_id,
-
-            @app.post("/api/mosaic")
-            async def create_mosaic(
-                base_image: UploadFile = File(...),
-                pixel_size_mm: int = Form(25),
-                max_uses: int = Form(2),
-                similarity: float = Form(0.0),
-                quality: int = Form(settings.DEFAULT_QUALITY),
-            ):
+            "tile_drive_id": tile_drive_id
+        }
+    )
                 if base_image.content_type not in {"image/jpeg", "image/jpg", "image/png"}:
                     raise HTTPException(status_code=400, detail="Only JPG and PNG files are allowed.")
 
