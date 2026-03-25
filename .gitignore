@@ -9,3 +9,32 @@ data/input/*
 !data/input/.gitkeep
 data/output/*
 !data/output/.gitkeep
+# Diretórios de saída
+output/
+mosaico_final.png
+*.png
+*.jpg
+*.jpeg
+
+# Ambientes Python
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
