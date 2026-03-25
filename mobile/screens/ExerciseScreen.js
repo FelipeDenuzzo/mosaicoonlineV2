@@ -1,0 +1,31 @@
+
+    fontWeight: 'bold',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  target: {
+    position: 'absolute',
+    left: TARGET_X,
+    top: TARGET_Y,
+    width: 100,
+    height: 100,
+    backgroundColor: '#eee',
+    borderColor: '#007AFF',
+    borderWidth: 2,
+    borderRadius: 10,
+  },
+  box: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+});

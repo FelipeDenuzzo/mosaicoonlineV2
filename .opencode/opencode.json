@@ -1,0 +1,18 @@
+{
+  "provider": {
+    "nim": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA NIM",
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1",
+        "apiKey": "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"
+      },
+      "models": {
+        "nemotron-3-super": {
+          "name": "nemotron-3-super"
+        }
+      }
+    }
+  },
+  "model": "nim/nemotron-3-super"
+}
